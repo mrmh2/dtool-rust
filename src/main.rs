@@ -1,14 +1,9 @@
 mod dataset;
 
-use dataset::ProtoDataSet;
+use dataset::{DataSet,ProtoDataSet};
 
 use std::path::PathBuf;
-use std::fs;
-use std::fs::File;
 use std::result::Result;
-use std::io::{BufReader,Write,copy,Read};
-
-use std::collections::HashMap;
 
 use clap::Clap;
 
@@ -21,7 +16,8 @@ struct Opts {
 #[derive(Clap)]
 enum SubCommand {
     Create(Create),
-    Freeze(Freeze)
+    Freeze(Freeze),
+    List(List)
 }
 
 #[derive(Clap)]
@@ -31,6 +27,11 @@ struct Create {
 
 #[derive(Clap)]
 struct Freeze {
+    uri: String
+}
+
+#[derive(Clap)]
+struct List {
     uri: String
 }
 
@@ -49,19 +50,7 @@ struct Freeze {
 // }
 
 
-// fn list(manifest: &Manifest) {
-//     let mut by_relpath: HashMap<String, &String> = manifest.items
-//         .iter()
-//         .map(|(k, v)| (v.relpath.clone(), k))
-//         .collect();
 
-//     let mut sorted_relpaths: Vec<String> = by_relpath.keys().map(|r| r.clone()).collect();
-//     sorted_relpaths.sort();
-
-//     for relpath in sorted_relpaths {
-//         println!("{}\t{}", by_relpath[&relpath], relpath);
-//     }    
-// }
 
 // type DataSetResult = std::result::Result<DataSet, std::io::Error>;
 
@@ -101,17 +90,7 @@ struct Freeze {
 //         }
 //     }
 
-//     // fn from_path_uri(path_uri: &Path) -> DataSetResult {
-//     //     let manifest_abspath = path_uri.join(".dtool").join("manifest.json");
-//     //     let fh = File::open(&manifest_abspath)?;
-//     //     let mut reader = BufReader::new(fh);
-//     //     let manifest: Manifest = serde_json::from_reader(reader)?;    
 
-//     //     Ok(DataSet {
-//     //         manifest: manifest
-//     //     })
-//     // }
-// }
 
 // fn get_all(ds: DataSet) -> std::result::Result<(), std::io::Error> {
 //     let root_dirpath = Path::new(&ds.admin_metadata.name);
@@ -133,7 +112,7 @@ struct Freeze {
 
 
 
-fn main() -> std::result::Result<(), std::io::Error> {
+fn main() -> Result<(), std::io::Error> {
 
     let opts: Opts = Opts::parse();
 
@@ -151,19 +130,12 @@ fn main() -> std::result::Result<(), std::io::Error> {
             proto_dataset.freeze()?;
             // println!("Brr {}", freeze.uri);
         }
+        SubCommand::List(list) => {
+            let uri = PathBuf::from(list.uri);
+            let dataset = DataSet::from_uri(uri)?;
+            dataset.list();
+        }
     }
-    // let args: Vec<String> = env::args().collect();
-    // let name = &args[1];
-
-    // let base_uri = PathBuf::from("scratch");
-    // let proto_dataset = ProtoDataSet::new(name, base_uri);
-
-    // proto_dataset.create_structure()?;
-
-    // let fpath = Path::new("image0001.jpg");
-    // proto_dataset.put_item(fpath, PathBuf::from("myim.jpg"))?;
-
-    // proto_dataset.freeze()?;
 
     Ok(())
 }

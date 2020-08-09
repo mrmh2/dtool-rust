@@ -4,7 +4,7 @@ use std::path::{Path,PathBuf};
 use std::fs;
 use std::fs::File;
 use std::result::Result;
-use std::io::{BufReader,Write,Read};
+use std::io::{BufReader,Write};
 
 use std::collections::HashMap;
 
@@ -12,11 +12,17 @@ use serde::{Serialize,Deserialize};
 
 use uuid::Uuid;
 
+const DTOOLCORE_VERSION: &str = "3.17.0";
+
 #[derive(Serialize, Deserialize)]
 struct AdminMetadata {
     name: String,
     uuid: String,
-    r#type: String
+    r#type: String,
+    dtoolcore_version: String,
+    creator_username: String,
+    created_at: f64,
+    frozen_at: f64
 }
 
 pub struct ProtoDataSet {
@@ -25,6 +31,14 @@ pub struct ProtoDataSet {
     data_root: PathBuf,
     dtool_dirpath: PathBuf,
     admin_metadata: AdminMetadata
+}
+
+pub struct DataSet {
+    base_path: PathBuf,
+    data_root: PathBuf,
+    dtool_dirpath: PathBuf,
+    admin_metadata: AdminMetadata,
+    manifest: Manifest
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -56,7 +70,50 @@ fn create_admin_metadata(name: &String) -> AdminMetadata {
     AdminMetadata {
         name: name.clone(),
         uuid: uuid.to_string(),
-        r#type: String::from("protodataset")
+        r#type: String::from("protodataset"),
+        dtoolcore_version: String::from(DTOOLCORE_VERSION),
+        creator_username: whoami::username(),
+        created_at: utils::current_time().unwrap(),
+        frozen_at: 0.0
+    }
+}
+
+impl DataSet {
+    pub fn from_uri(uri: PathBuf) -> Result<DataSet, std::io::Error> {
+        let data_root = uri.join("data");
+        let dtool_dirpath = uri.join(".dtool");
+        let dtool_fpath = dtool_dirpath.join("dtool");
+
+        let fh = File::open(&dtool_fpath)?;
+        let reader = BufReader::new(fh);
+        let admin_metadata: AdminMetadata = serde_json::from_reader(reader)?;
+
+        let manifest_abspath = dtool_dirpath.join("manifest.json");
+        let fh = File::open(&manifest_abspath)?;
+        let mut reader = BufReader::new(fh);
+        let manifest: Manifest = serde_json::from_reader(reader)?; 
+
+        Ok(DataSet {
+            admin_metadata: admin_metadata,
+            data_root: data_root,
+            dtool_dirpath: dtool_dirpath,
+            base_path: uri,
+            manifest: manifest
+        })
+    }
+
+    pub fn list(&self) {
+        let mut by_relpath: HashMap<String, &String> = self.manifest.items
+            .iter()
+            .map(|(k, v)| (v.relpath.clone(), k))
+            .collect();
+
+        let mut sorted_relpaths: Vec<String> = by_relpath.keys().map(|r| r.clone()).collect();
+        sorted_relpaths.sort();
+
+        for relpath in sorted_relpaths {
+            println!("{}\t{}", by_relpath[&relpath], relpath);
+        }    
     }
 }
 
@@ -81,7 +138,7 @@ impl ProtoDataSet {
         let dtool_dirpath = uri.join(".dtool");
         let dtool_fpath = dtool_dirpath.join("dtool");
         let fh = File::open(&dtool_fpath)?;
-        let mut reader = BufReader::new(fh);
+        let reader = BufReader::new(fh);
         let admin_metadata: AdminMetadata = serde_json::from_reader(reader)?;
 
         Ok(ProtoDataSet {
@@ -105,7 +162,7 @@ impl ProtoDataSet {
         fs::create_dir_all(&self.data_root)?;
         fs::create_dir_all(&self.dtool_dirpath)?;
 
-        self.put_admin_metadata();
+        self.put_admin_metadata()?;
  
         Ok(())
     }
@@ -146,7 +203,7 @@ impl ProtoDataSet {
         }
 
         let manifest = Manifest{
-            dtoolcore_version: String::from("3.0.0"),
+            dtoolcore_version: String::from(DTOOLCORE_VERSION),
             hash_function: String::from("md5sum_hexdigest"),
             items: manifest_items
         };
@@ -156,7 +213,8 @@ impl ProtoDataSet {
         fh.write_all(j.as_bytes())?;
 
         self.admin_metadata.r#type = String::from("dataset");
-        self.put_admin_metadata();
+        self.admin_metadata.frozen_at = utils::current_time().unwrap();
+        self.put_admin_metadata()?;
 
         Ok(())
     }

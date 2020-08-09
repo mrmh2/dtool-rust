@@ -20,7 +20,7 @@ pub fn hexdigest(path: &Path) -> std::io::Result<String> {
     Ok(format!("{:x}", context.compute()))
 }
 
-pub fn mtime_from_path(path: &Path) -> Result<(f64), std::io::Error> {
+pub fn mtime_from_path(path: &Path) -> Result<f64, std::io::Error> {
     let metadata = std::fs::metadata(&path)?;
     let since_epoch = metadata
         .modified()
@@ -30,4 +30,12 @@ pub fn mtime_from_path(path: &Path) -> Result<(f64), std::io::Error> {
     let t_mod_s = since_epoch.as_secs() as f64 + since_epoch.subsec_nanos() as f64 * 1e-9;
 
     Ok(t_mod_s)
+}
+
+pub fn current_time() -> Result<f64, std::io::Error> {
+    let now = std::time::SystemTime::now();
+    let since_epoch = now.duration_since(std::time::UNIX_EPOCH).unwrap();
+    let t_s = since_epoch.as_secs() as f64 + since_epoch.subsec_nanos() as f64 * 1e-9;
+
+    Ok(t_s)
 }
