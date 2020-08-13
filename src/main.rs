@@ -152,8 +152,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             match parse_result {
                 Ok(uri) => {
                     println!("Normal URI {}", uri.scheme());
-                    let dataset = HTTPDataSet::from_uri(test.uri);
-                    // dataset.list();
+                    let dataset = HTTPDataSet::from_uri(test.uri)?;
+                    dataset.list();
                 }
                 Err(e) => {
                     let uri = uri_from_file_path(&test.uri)?;

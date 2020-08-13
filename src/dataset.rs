@@ -4,15 +4,24 @@ use std::path::{Path,PathBuf};
 use std::fs;
 use std::fs::File;
 use std::result::Result;
-use std::io::{BufReader,Write};
+use std::io::{BufReader, Write};
 
 use std::collections::HashMap;
 
-use serde::{Serialize,Deserialize};
+use serde::{Serialize, Deserialize, Deserializer, de};
+use serde_json::Value;
 
 use uuid::Uuid;
 
 const DTOOLCORE_VERSION: &str = "3.17.0";
+
+fn de_timestamp<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f64, D::Error> {
+    Ok(match Value::deserialize(deserializer)? {
+        Value::String(s) => s.parse().map_err(de::Error::custom)?,
+        Value::Number(num) => num.as_f64().ok_or(de::Error::custom("Invalid number"))?,
+        _ => return Err(de::Error::custom("wrong type"))
+    })
+}
 
 #[derive(Serialize, Deserialize)]
 struct AdminMetadata {
@@ -21,7 +30,9 @@ struct AdminMetadata {
     r#type: String,
     dtoolcore_version: String,
     creator_username: String,
+    #[serde(deserialize_with = "de_timestamp")]
     created_at: f64,
+    #[serde(deserialize_with = "de_timestamp")]
     frozen_at: f64
 }
 
@@ -152,6 +163,12 @@ impl DiskDataSet {
 }
  
 impl DSList for DiskDataSet {
+    fn get_items(&self) -> &HashMap<String, ManifestItem> {
+        &self.manifest.items
+    }
+}
+
+impl DSList for HTTPDataSet {
     fn get_items(&self) -> &HashMap<String, ManifestItem> {
         &self.manifest.items
     }
