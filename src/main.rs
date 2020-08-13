@@ -1,11 +1,14 @@
 mod dataset;
 
-use dataset::{DataSet,ProtoDataSet};
+use dataset::{DiskDataSet,HTTPDataSet,ProtoDataSet,DSList};
 
+use std::io::ErrorKind;
+use std::error::Error;
 use std::path::PathBuf;
 use std::result::Result;
 
 use clap::Clap;
+use url::{Url, ParseError};
 
 #[derive(Clap)]
 struct Opts {
@@ -17,7 +20,8 @@ struct Opts {
 enum SubCommand {
     Create(Create),
     Freeze(Freeze),
-    List(List)
+    List(List),
+    Test(Test)
 }
 
 #[derive(Clap)]
@@ -35,19 +39,15 @@ struct List {
     uri: String
 }
 
-// #[derive(Deserialize)]
-// struct HTTPManifest {
-//     admin_metadata: AdminMetadata,
-//     item_urls: HashMap<String, String>,
-//     manifest_url: String
-// }
+#[derive(Clap)]
+struct Test {
+    uri: String
+}
 
 
-// struct DataSet {
-//     admin_metadata: AdminMetadata,
-//     manifest: Manifest,
-//     item_urls: HashMap<String, String>
-// }
+
+
+
 
 
 
@@ -111,8 +111,18 @@ struct List {
 // }
 
 
+fn uri_from_file_path(fpath: &String) -> Result<Url, std::io::Error> {
+    let pathuri = PathBuf::from(&fpath);
+    let canonical = std::fs::canonicalize(&pathuri)?;
+    
+    match Url::from_file_path(&canonical) {
+        Ok(url) => return Ok(url),
+        Err(e) => return Err(std::io::Error::new(ErrorKind::Other, "Can't parse URI")),
+    }  
+}
 
-fn main() -> Result<(), std::io::Error> {
+
+fn main() -> Result<(), Box<dyn Error>> {
 
     let opts: Opts = Opts::parse();
 
@@ -132,8 +142,37 @@ fn main() -> Result<(), std::io::Error> {
         }
         SubCommand::List(list) => {
             let uri = PathBuf::from(list.uri);
-            let dataset = DataSet::from_uri(uri)?;
-            dataset.list();
+            // let dataset = DataSet::from_uri(uri)?;
+            // dataset.list();
+        }
+        SubCommand::Test(test) => {
+            let parse_result = Url::parse(&test.uri);
+
+
+            match parse_result {
+                Ok(uri) => {
+                    println!("Normal URI {}", uri.scheme());
+                    let dataset = HTTPDataSet::from_uri(test.uri);
+                    // dataset.list();
+                }
+                Err(e) => {
+                    let uri = uri_from_file_path(&test.uri)?;
+                    println!("Path URI {}", uri.scheme());
+                    let pathuri = PathBuf::from(test.uri);
+                    let dataset = DiskDataSet::from_uri(pathuri)?;
+                    dataset.list();
+                }
+            }
+
+
+
+            // println!("{}", url.scheme());
+
+            // let pathuri = PathBuf::from(test.uri);
+            // let canonical = std::fs::canonicalize(&pathuri)?;
+            // let url = Url::from_file_path(&canonical).unwrap();
+
+            // println!("{:?} {:?} {}", pathuri, canonical, url.as_str());
         }
     }
 

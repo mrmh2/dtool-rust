@@ -25,6 +25,13 @@ struct AdminMetadata {
     frozen_at: f64
 }
 
+#[derive(Deserialize)]
+struct HTTPManifest {
+    admin_metadata: AdminMetadata,
+    item_urls: HashMap<String, String>,
+    manifest_url: String
+}
+
 pub struct ProtoDataSet {
     name: String,
     base_path: PathBuf,
@@ -33,12 +40,18 @@ pub struct ProtoDataSet {
     admin_metadata: AdminMetadata
 }
 
-pub struct DataSet {
+pub struct DiskDataSet {
     base_path: PathBuf,
     data_root: PathBuf,
     dtool_dirpath: PathBuf,
     admin_metadata: AdminMetadata,
     manifest: Manifest
+}
+
+pub struct HTTPDataSet {
+    admin_metadata: AdminMetadata,
+    manifest: Manifest,
+    item_urls: HashMap<String, String>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -78,8 +91,43 @@ fn create_admin_metadata(name: &String) -> AdminMetadata {
     }
 }
 
-impl DataSet {
-    pub fn from_uri(uri: PathBuf) -> Result<DataSet, std::io::Error> {
+pub trait DSList {
+
+    fn get_items(&self) -> &HashMap<String, ManifestItem>;
+
+    fn list(&self) {
+        let mut by_relpath: HashMap<String, &String> = self.get_items()
+            .iter()
+            .map(|(k, v)| (v.relpath.clone(), k))
+            .collect();
+
+        let mut sorted_relpaths: Vec<String> = by_relpath.keys().map(|r| r.clone()).collect();
+        sorted_relpaths.sort();
+
+        for relpath in sorted_relpaths {
+            println!("{}\t{}", by_relpath[&relpath], relpath);
+        }    
+    }
+}
+
+impl HTTPDataSet {
+    pub fn from_uri(uri: String) -> Result<HTTPDataSet, std::io::Error> {
+        let http_manifest_uri = format!("{}/http_manifest.json", uri);
+        let body = reqwest::blocking::get(&http_manifest_uri).unwrap().text().unwrap();
+        let http_manifest: HTTPManifest = serde_json::from_str(&body)?;
+        let body = reqwest::blocking::get(&http_manifest.manifest_url).unwrap().text().unwrap();
+        let manifest: Manifest = serde_json::from_str(&body)?;    
+
+        Ok(HTTPDataSet {
+            admin_metadata: http_manifest.admin_metadata,
+            manifest: manifest,
+            item_urls: http_manifest.item_urls
+        })
+    }
+}
+
+impl DiskDataSet {
+    pub fn from_uri(uri: PathBuf) -> Result<DiskDataSet, std::io::Error> {
         let data_root = uri.join("data");
         let dtool_dirpath = uri.join(".dtool");
         let dtool_fpath = dtool_dirpath.join("dtool");
@@ -93,7 +141,7 @@ impl DataSet {
         let mut reader = BufReader::new(fh);
         let manifest: Manifest = serde_json::from_reader(reader)?; 
 
-        Ok(DataSet {
+        Ok(DiskDataSet {
             admin_metadata: admin_metadata,
             data_root: data_root,
             dtool_dirpath: dtool_dirpath,
@@ -101,19 +149,11 @@ impl DataSet {
             manifest: manifest
         })
     }
-
-    pub fn list(&self) {
-        let mut by_relpath: HashMap<String, &String> = self.manifest.items
-            .iter()
-            .map(|(k, v)| (v.relpath.clone(), k))
-            .collect();
-
-        let mut sorted_relpaths: Vec<String> = by_relpath.keys().map(|r| r.clone()).collect();
-        sorted_relpaths.sort();
-
-        for relpath in sorted_relpaths {
-            println!("{}\t{}", by_relpath[&relpath], relpath);
-        }    
+}
+ 
+impl DSList for DiskDataSet {
+    fn get_items(&self) -> &HashMap<String, ManifestItem> {
+        &self.manifest.items
     }
 }
 
