@@ -121,6 +121,16 @@ fn uri_from_file_path(fpath: &String) -> Result<Url, std::io::Error> {
     }  
 }
 
+fn dataset_from_uri(uri: String) -> Result<Box<dyn DSList>, std::io::Error> {
+    let parse_result = Url::parse(&uri);
+    match parse_result {
+        Ok(pr) => Ok(Box::new(HTTPDataSet::from_uri(uri)?)),
+        Err(e) => {
+            let pathuri = PathBuf::from(uri);
+            Ok(Box::new(DiskDataSet::from_uri(pathuri)?))     
+        }
+    }
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
 
@@ -141,9 +151,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             // println!("Brr {}", freeze.uri);
         }
         SubCommand::List(list) => {
-            let uri = PathBuf::from(list.uri);
+            let dataset = dataset_from_uri(list.uri)?;
+            // let uri = PathBuf::from(list.uri);
             // let dataset = DataSet::from_uri(uri)?;
-            // dataset.list();
+            dataset.list();
         }
         SubCommand::Test(test) => {
             let parse_result = Url::parse(&test.uri);
