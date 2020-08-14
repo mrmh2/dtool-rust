@@ -1,14 +1,13 @@
 mod dataset;
 
-use dataset::{DiskDataSet,HTTPDataSet,ProtoDataSet,DSList};
+use dataset::{DiskDataSet,HTTPDataSet,ProtoDataSet,DataSet};
 
-use std::io::ErrorKind;
 use std::error::Error;
 use std::path::PathBuf;
 use std::result::Result;
 
 use clap::Clap;
-use url::{Url, ParseError};
+use url::Url;
 
 #[derive(Clap)]
 struct Opts {
@@ -45,81 +44,21 @@ struct Test {
     dest_base_uri: String
 }
 
-
-// type DataSetResult = std::result::Result<DataSet, std::io::Error>;
-
-// impl DataSet {
-//     fn from_http_uri(uri: String) -> DataSetResult {
-//         let http_manifest_uri = format!("{}/http_manifest.json", uri);
-//         let body = reqwest::blocking::get(&http_manifest_uri).unwrap().text().unwrap();
-//         let http_manifest: HTTPManifest = serde_json::from_str(&body)?;
-//         let body = reqwest::blocking::get(&http_manifest.manifest_url).unwrap().text().unwrap();
-//         let manifest: Manifest = serde_json::from_str(&body)?;    
-
-//         Ok(DataSet {
-//             admin_metadata: http_manifest.admin_metadata,
-//             manifest: manifest,
-//             item_urls: http_manifest.item_urls
-//         })
-//     }
-
-//     fn item_content_abspath(&self, idn: &String) -> std::result::Result<PathBuf, std::io::Error> {
-//         let cache_dirpath = Path::new("cache").join(&self.admin_metadata.uuid);
-//         let ext = Path::new(&self.manifest.items[idn].relpath)
-//             .extension()
-//             .unwrap()
-//             .to_str()
-//             .unwrap_or("");
-        
-//         let dest_path = cache_dirpath.join(idn).with_extension(ext);
-
-//         if dest_path.exists() {
-//             Ok(dest_path)
-//         } else {
-//             fs::create_dir_all(cache_dirpath)?;
-//             let content = reqwest::blocking::get(&self.item_urls[idn]).unwrap().bytes().unwrap();
-//             let mut fh = File::create(&dest_path)?;
-//             copy(&mut content.as_ref(), &mut fh)?;
-//             Ok(dest_path)
-//         }
-//     }
-
-
-
-// fn get_all(ds: DataSet) -> std::result::Result<(), std::io::Error> {
-//     let root_dirpath = Path::new(&ds.admin_metadata.name);
-//     let data_root = root_dirpath.join("data");
-
-//     for idn in ds.manifest.items.keys() {
-//         println!("{}", ds.item_urls[idn]);
-//         let relpath = Path::new(&ds.manifest.items[idn].relpath);
-//         let fpath = data_root.join(relpath);
-//         println!("Attempting to create {:?}", fpath.parent().unwrap());
-//         fs::create_dir_all(fpath.parent().unwrap())?;
-//         let body = reqwest::blocking::get(&ds.item_urls[idn]).unwrap().bytes().unwrap();
-//         let mut fh = File::create(&fpath)?;
-//         copy(&mut body.as_ref(), &mut fh)?;
-//     }
-
-//     Ok(())
+// fn uri_from_file_path(fpath: &String) -> Result<Url, std::io::Error> {
+//     let pathuri = PathBuf::from(&fpath);
+//     let canonical = std::fs::canonicalize(&pathuri)?;
+    
+//     match Url::from_file_path(&canonical) {
+//         Ok(url) => return Ok(url),
+//         Err(e) => return Err(std::io::Error::new(ErrorKind::Other, "Can't parse URI")),
+//     }  
 // }
 
-
-fn uri_from_file_path(fpath: &String) -> Result<Url, std::io::Error> {
-    let pathuri = PathBuf::from(&fpath);
-    let canonical = std::fs::canonicalize(&pathuri)?;
-    
-    match Url::from_file_path(&canonical) {
-        Ok(url) => return Ok(url),
-        Err(e) => return Err(std::io::Error::new(ErrorKind::Other, "Can't parse URI")),
-    }  
-}
-
-fn dataset_from_uri(uri: String) -> Result<Box<dyn DSList>, std::io::Error> {
+fn dataset_from_uri(uri: String) -> Result<Box<dyn DataSet>, std::io::Error> {
     let parse_result = Url::parse(&uri);
     match parse_result {
-        Ok(pr) => Ok(Box::new(HTTPDataSet::from_uri(uri)?)),
-        Err(e) => {
+        Ok(_pr) => Ok(Box::new(HTTPDataSet::from_uri(uri)?)),
+        Err(_e) => {
             let pathuri = PathBuf::from(uri);
             Ok(Box::new(DiskDataSet::from_uri(pathuri)?))     
         }
@@ -169,78 +108,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             proto_dataset.freeze()?;
 
-            // for (idn, item) in src_dataset.get_items() {
 
-            // }
-//         println!("{}", ds.item_urls[idn]);
-//         let relpath = Path::new(&ds.manifest.items[idn].relpath);
-//         let fpath = data_root.join(relpath);
-//         println!("Attempting to create {:?}", fpath.parent().unwrap());
-//         fs::create_dir_all(fpath.parent().unwrap())?;
-//         let body = reqwest::blocking::get(&ds.item_urls[idn]).unwrap().bytes().unwrap();
-//         let mut fh = File::create(&fpath)?;
-//         copy(&mut body.as_ref(), &mut fh)?;
-//     }
         }
     }
 
     Ok(())
 }
-
-// fn tumain() -> std::result::Result<(), std::io::Error> {
-//     let args: Vec<String> = env::args().collect();
-
-//     let uri = &args[1];
-
-//     if uri.starts_with("http") {
-//         let ds = DataSet::from_http_uri(args[1].clone())?;
-//         // let idn = ds.manifest.items.keys().next().unwrap();
-//         // let idn = String::from("4ddbab7076711d7b8912a26924bae863fcec1e6d");
-//         for idn in ds.manifest.items.keys() {
-//             println!("{:?}", ds.item_content_abspath(&idn));
-//         }
-
-//     } else {
-        
-//         // let path_uri = Path::new(&args[1]);
-//         // let ds = DataSet::from_path_uri(path_uri)?;
-//         // list(&ds.manifest);
-//     }
-
-    // let pathuri = Path::new(&args[1]);
-
-    // println!("Loading from {}", pathuri.display());
-
-    // let admin_metadata_abspath = pathuri.join(".dtool").join("dtool");
-
-    // println!("Load {}", admin_metadata_abspath.display());
-
-    // let fh = File::open(&admin_metadata_abspath)?;
-    // let v: Value = serde_json::from_reader(fh)?;
-    // println!("UUID: {}", v["uuid"]);
-
-    // let manifest_abspath = pathuri.join(".dtool").join("manifest.json");
-
-    // let fh = File::open(&manifest_abspath)?;
-    // let v: Value = serde_json::from_reader(fh)?;
-
-    // for (key, value) in v["items"].as_object().unwrap() {
-    //     println!("{}    {}", key, value["relpath"]);
-    // }
-
-
-    // let mut relpaths: Vec<String> = manifest.items.values().map(|item| item.relpath.clone()).collect();
-    // relpaths.sort();
-    // println!("{:?}", relpaths);
-
-    // let mut by_relpath = HashMap::new();
-
-    // for (k, v) in manifest.items {
-    //     by_relpath.insert(v.relpath, k);
-    // }
-
-    // let uri = "https://dtoolaidata.blob.core.windows.net/839ae396-74a7-44f9-9b08-436be53b1090";
-
-
-//     Ok(())
-// }

@@ -104,7 +104,7 @@ fn create_admin_metadata(name: &String) -> AdminMetadata {
     }
 }
 
-pub trait DSList {
+pub trait DataSet {
 
     fn name(&self) -> &String;
     fn get_items(&self) -> &HashMap<String, ManifestItem>;
@@ -116,7 +116,7 @@ pub trait DSList {
     fn item_properties(&self, idn: &String) -> &ManifestItem;
 
     fn list(&self) {
-        let mut by_relpath: HashMap<String, &String> = self.get_items()
+        let by_relpath: HashMap<String, &String> = self.get_items()
             .iter()
             .map(|(k, v)| (v.relpath.clone(), k))
             .collect();
@@ -160,7 +160,7 @@ impl DiskDataSet {
 
         let manifest_abspath = dtool_dirpath.join("manifest.json");
         let fh = File::open(&manifest_abspath)?;
-        let mut reader = BufReader::new(fh);
+        let reader = BufReader::new(fh);
         let manifest: Manifest = serde_json::from_reader(reader)?; 
 
         Ok(DiskDataSet {
@@ -173,7 +173,7 @@ impl DiskDataSet {
     }
 }
  
-impl DSList for DiskDataSet {
+impl DataSet for DiskDataSet {
     fn name(&self) -> &String {
         &self.admin_metadata.name
     }
@@ -188,14 +188,13 @@ impl DSList for DiskDataSet {
     fn item_content_abspath(&self, idn: &String) -> std::result::Result<PathBuf, std::io::Error> {
         let relpath = &self.item_properties(idn).relpath;
         Ok(self.data_root.join(relpath))
-        // Err(std::io::Error::new(std::io::ErrorKind::Other, "NYI"))
     }
     fn item_properties(&self, idn: &String) -> &ManifestItem {
         self.manifest.items.get(idn).unwrap()
     }
 }
 
-impl DSList for HTTPDataSet {
+impl DataSet for HTTPDataSet {
     fn identifiers(&self) -> Vec<&String> {
         self.manifest.items.keys().collect()
     }
