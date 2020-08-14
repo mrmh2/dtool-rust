@@ -41,15 +41,9 @@ struct List {
 
 #[derive(Clap)]
 struct Test {
-    uri: String
+    source_uri: String,
+    dest_base_uri: String
 }
-
-
-
-
-
-
-
 
 
 // type DataSetResult = std::result::Result<DataSet, std::io::Error>;
@@ -155,6 +149,38 @@ fn main() -> Result<(), Box<dyn Error>> {
             // let uri = PathBuf::from(list.uri);
             // let dataset = DataSet::from_uri(uri)?;
             dataset.list();
+        }
+        SubCommand::Test(test) => {
+            println!("Copy {} to {}", test.source_uri, test.dest_base_uri);
+            let src_dataset = dataset_from_uri(test.source_uri)?;
+
+            let dest_base_uri = PathBuf::from(test.dest_base_uri);
+            let mut proto_dataset = ProtoDataSet::new(&src_dataset.name(), dest_base_uri);
+            proto_dataset.create_structure()?;
+
+            let readme_content = src_dataset.get_readme_content();
+            proto_dataset.put_readme(&readme_content.as_bytes())?;
+
+            for idn in src_dataset.identifiers() {
+                let abspath = src_dataset.item_content_abspath(idn)?;
+                let relpath = &src_dataset.item_properties(idn).relpath;
+                proto_dataset.put_item(&abspath, PathBuf::from(relpath))?;
+            }
+
+            proto_dataset.freeze()?;
+
+            // for (idn, item) in src_dataset.get_items() {
+
+            // }
+//         println!("{}", ds.item_urls[idn]);
+//         let relpath = Path::new(&ds.manifest.items[idn].relpath);
+//         let fpath = data_root.join(relpath);
+//         println!("Attempting to create {:?}", fpath.parent().unwrap());
+//         fs::create_dir_all(fpath.parent().unwrap())?;
+//         let body = reqwest::blocking::get(&ds.item_urls[idn]).unwrap().bytes().unwrap();
+//         let mut fh = File::create(&fpath)?;
+//         copy(&mut body.as_ref(), &mut fh)?;
+//     }
         }
     }
 

@@ -40,7 +40,8 @@ struct AdminMetadata {
 struct HTTPManifest {
     admin_metadata: AdminMetadata,
     item_urls: HashMap<String, String>,
-    manifest_url: String
+    manifest_url: String,
+    readme_url: String
 }
 
 pub struct ProtoDataSet {
@@ -62,13 +63,14 @@ pub struct DiskDataSet {
 pub struct HTTPDataSet {
     admin_metadata: AdminMetadata,
     manifest: Manifest,
+    readme_url: String,
     item_urls: HashMap<String, String>
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct ManifestItem {
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ManifestItem {
     hash: String,
-    relpath: String,
+    pub relpath: String,
     size_in_bytes: u64,
     utc_timestamp: f64
 }
@@ -104,7 +106,14 @@ fn create_admin_metadata(name: &String) -> AdminMetadata {
 
 pub trait DSList {
 
+    fn name(&self) -> &String;
     fn get_items(&self) -> &HashMap<String, ManifestItem>;
+    fn identifiers(&self) -> Vec<&String>;
+    fn get_readme_content(&self) -> String {
+        String::from("")
+    }
+    fn item_content_abspath(&self, idn: &String) -> std::result::Result<PathBuf, std::io::Error>;
+    fn item_properties(&self, idn: &String) -> &ManifestItem;
 
     fn list(&self) {
         let mut by_relpath: HashMap<String, &String> = self.get_items()
@@ -127,14 +136,16 @@ impl HTTPDataSet {
         let body = reqwest::blocking::get(&http_manifest_uri).unwrap().text().unwrap();
         let http_manifest: HTTPManifest = serde_json::from_str(&body)?;
         let body = reqwest::blocking::get(&http_manifest.manifest_url).unwrap().text().unwrap();
-        let manifest: Manifest = serde_json::from_str(&body)?;    
+        let manifest: Manifest = serde_json::from_str(&body)?;
 
         Ok(HTTPDataSet {
             admin_metadata: http_manifest.admin_metadata,
+            readme_url: http_manifest.readme_url,
             manifest: manifest,
             item_urls: http_manifest.item_urls
         })
     }
+
 }
 
 impl DiskDataSet {
@@ -163,14 +174,64 @@ impl DiskDataSet {
 }
  
 impl DSList for DiskDataSet {
+    fn name(&self) -> &String {
+        &self.admin_metadata.name
+    }
+
     fn get_items(&self) -> &HashMap<String, ManifestItem> {
         &self.manifest.items
+    }
+
+    fn identifiers(&self) -> Vec<&String> {
+        self.manifest.items.keys().collect()
+    }
+    fn item_content_abspath(&self, idn: &String) -> std::result::Result<PathBuf, std::io::Error> {
+        Err(std::io::Error::new(std::io::ErrorKind::Other, "NYI"))
+    }
+    fn item_properties(&self, idn: &String) -> &ManifestItem {
+        self.manifest.items.get(idn).unwrap()
     }
 }
 
 impl DSList for HTTPDataSet {
+    fn identifiers(&self) -> Vec<&String> {
+        self.manifest.items.keys().collect()
+    }
+    fn name(&self) -> &String {
+        &self.admin_metadata.name
+    }
+
     fn get_items(&self) -> &HashMap<String, ManifestItem> {
         &self.manifest.items
+    }
+
+    fn get_readme_content(&self) -> String {
+        reqwest::blocking::get(&self.readme_url).unwrap().text().unwrap()
+    }
+
+    fn item_properties(&self, idn: &String) -> &ManifestItem {
+        self.manifest.items.get(idn).unwrap()
+    }
+
+    fn item_content_abspath(&self, idn: &String) -> std::result::Result<PathBuf, std::io::Error> {
+        let cache_dirpath = Path::new("cache").join(&self.admin_metadata.uuid);
+        let ext = Path::new(&self.manifest.items[idn].relpath)
+            .extension()
+            .unwrap()
+            .to_str()
+            .unwrap_or("");
+        
+        let dest_path = cache_dirpath.join(idn).with_extension(ext);
+
+        if dest_path.exists() {
+            Ok(dest_path)
+        } else {
+            fs::create_dir_all(cache_dirpath)?;
+            let content = reqwest::blocking::get(&self.item_urls[idn]).unwrap().bytes().unwrap();
+            let mut fh = File::create(&dest_path)?;
+            std::io::copy(&mut content.as_ref(), &mut fh)?;
+            Ok(dest_path)
+        }
     }
 }
 
@@ -226,6 +287,7 @@ impl ProtoDataSet {
 
     pub fn put_item(&self, fpath: &Path, relpath: PathBuf) -> Result<(), std::io::Error> {
         let dest_fpath = self.data_root.join(relpath);
+        fs::create_dir_all(dest_fpath.parent().unwrap())?;
         std::fs::copy(fpath, dest_fpath)?;
         Ok(())
     }
@@ -252,11 +314,15 @@ impl ProtoDataSet {
 
         let mut manifest_items = HashMap::new();
 
-        for item in std::fs::read_dir(&self.data_root)? {
-            let p = item.unwrap().path();
-            let item_properties = self.properties_from_path(&p)?;
-            let idn = generate_identifier(item_properties.relpath.as_bytes());
-            manifest_items.insert(idn, item_properties);
+        let walker = walkdir::WalkDir::new(&self.data_root).into_iter();
+        for entry in walker {
+            let e = entry.unwrap();
+            let p = e.path();
+            if p.is_file() {
+                let item_properties = self.properties_from_path(&p)?;
+                let idn = generate_identifier(item_properties.relpath.as_bytes());
+                manifest_items.insert(idn, item_properties);                
+            }
         }
 
         let manifest = Manifest{
