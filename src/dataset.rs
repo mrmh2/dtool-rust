@@ -186,7 +186,9 @@ impl DSList for DiskDataSet {
         self.manifest.items.keys().collect()
     }
     fn item_content_abspath(&self, idn: &String) -> std::result::Result<PathBuf, std::io::Error> {
-        Err(std::io::Error::new(std::io::ErrorKind::Other, "NYI"))
+        let relpath = &self.item_properties(idn).relpath;
+        Ok(self.data_root.join(relpath))
+        // Err(std::io::Error::new(std::io::ErrorKind::Other, "NYI"))
     }
     fn item_properties(&self, idn: &String) -> &ManifestItem {
         self.manifest.items.get(idn).unwrap()
