@@ -156,35 +156,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             // let dataset = DataSet::from_uri(uri)?;
             dataset.list();
         }
-        SubCommand::Test(test) => {
-            let parse_result = Url::parse(&test.uri);
-
-
-            match parse_result {
-                Ok(uri) => {
-                    println!("Normal URI {}", uri.scheme());
-                    let dataset = HTTPDataSet::from_uri(test.uri)?;
-                    dataset.list();
-                }
-                Err(e) => {
-                    let uri = uri_from_file_path(&test.uri)?;
-                    println!("Path URI {}", uri.scheme());
-                    let pathuri = PathBuf::from(test.uri);
-                    let dataset = DiskDataSet::from_uri(pathuri)?;
-                    dataset.list();
-                }
-            }
-
-
-
-            // println!("{}", url.scheme());
-
-            // let pathuri = PathBuf::from(test.uri);
-            // let canonical = std::fs::canonicalize(&pathuri)?;
-            // let url = Url::from_file_path(&canonical).unwrap();
-
-            // println!("{:?} {:?} {}", pathuri, canonical, url.as_str());
-        }
     }
 
     Ok(())
